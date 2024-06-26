@@ -1,71 +1,121 @@
-import { useEffect, useState } from "react";
-import "../style/Home.css"
+import React, { useEffect, useState } from "react";
+import "../style/Home.css";
 import api from "../api";
 import Note from "../components/Note";
 import { useNavigate } from "react-router-dom";
 
 const Home = () => {
   const navigate = useNavigate();
-  const [notes, setNote] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [id, setId] = useState(null); 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
   useEffect(() => {
-    getNote();
+    getNotes();
   }, []);
 
-  const getNote = () => {
-    api
-      .get("api/notes/")
-      .then((res)=> res.data)
-      .then((data)=>{
-        setNote(data)
-        console.log(data)
+  const getNotes = () => {
+    api.get("api/notes/")
+      .then((res) => {
+        setNotes(res.data);
       })
       .catch((err) => {
-        console.log(err);
-        navigate('/login')
+        console.error("Error fetching notes:", err);
+        navigate('/login'); // Redirect to login page on error
       });
   };
 
   const deleteNote = (id) => {
-    api
-      .delete(`api/note/delete/${id}/`)
+    api.delete(`api/note/delete/${id}/`)
       .then((res) => {
         if (res.status === 204) {
-          alert("note deleted");
-          getNote()
+          alert("Note deleted");
+          getNotes(); // Refresh notes after deletion
         } else {
-          ("failed to delete note");
+          alert("Failed to delete note");
         }
       })
       .catch((err) => {
-        console.log(err);
+        console.error("Error deleting note:", err);
       });
   };
-  const createNote = (e) => {
+
+  const updateNote = (id) => {
+    const noteToUpdate = notes.find((note) => note.id === id);
+    if (noteToUpdate) {
+      setId(noteToUpdate.id); // Set id state for update
+      setTitle(noteToUpdate.title);
+      setContent(noteToUpdate.content);
+    } else {
+      console.error(`Note with id ${id} not found.`);
+    }
+  };
+
+  const handleFormSubmit = (e) => {
     e.preventDefault();
-    api
-        .post("/api/notes/", { content, title })
+
+    if (!id) {
+      // If id doesn't exist, we are creating a new note
+      const newNote = {
+        title: title,
+        content: content,
+      };
+
+      api.post("/api/notes/", newNote)
         .then((res) => {
-            if (res.status === 201) {
-              alert("Note created!")
-            }
-            else alert("Failed to make note.");
-            getNote()
+          if (res.status === 201) {
+            alert("Note created successfully");
+            getNotes(); // refresh notes after creation
+            setTitle(""); // clear input fields after successful submission
+            setContent("");
+          } else {
+            alert("Failed to create note");
+          }
         })
-        .catch((err) => alert(err));
-};
+        .catch((err) => {
+          console.error("Error creating note:", err);
+        });
+    } else {
+      // if id exists, we are updating an existing note
+      const updatedNote = {
+        title: title,
+        content: content,
+      };
+
+      api.put(`api/note/update/${id}/`, updatedNote)
+        .then((res) => {
+          if (res.status === 200) {
+            alert("Note updated successfully");
+            getNotes(); // refresh notes after update
+            setId(null); // reset id state to null to toggle back to create mode
+            setTitle(""); 
+            setContent("");
+          } else {
+            alert("Failed to update note");
+          }
+        })
+        .catch((err) => {
+          console.error("Error updating note:", err);
+        });
+    }
+  };
+
   return (
     <div>
       <div>
         <h2>Notes</h2>
         {notes.map((note) => (
-                    <Note note={note} onDelete={deleteNote} key={note.id} />
-                ))}
+          <Note
+            key={note.id}
+            note={note}
+            onDelete={deleteNote}
+            onUpdate={updateNote}
+          />
+        ))}
       </div>
-      <h2>Create a Note</h2>
-      <form onSubmit={createNote}>
+      <h2>{id ? "Update Note" : "Create a Note"}</h2>
+      <form onSubmit={handleFormSubmit}>
         <label htmlFor="title">Title:</label>
         <br />
         <input
@@ -73,9 +123,10 @@ const Home = () => {
           id="title"
           name="title"
           required
-          onChange={(e) => setTitle(e.target.value)}
           value={title}
+          onChange={(e) => setTitle(e.target.value)}
         />
+        <br />
         <label htmlFor="content">Content:</label>
         <br />
         <textarea
@@ -86,7 +137,7 @@ const Home = () => {
           onChange={(e) => setContent(e.target.value)}
         ></textarea>
         <br />
-        <input type="submit" value="Submit"></input>
+        <input type="submit" value={id ? "Update" : "Create"} />
       </form>
     </div>
   );
